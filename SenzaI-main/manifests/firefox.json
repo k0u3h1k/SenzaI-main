@@ -1,0 +1,37 @@
+{
+  "manifest_version": 2,
+  "name": "SenzaI",
+  "author": "Abhidatta Benda",
+  "description": "The ultimate minimalist quicklink launcher.",
+  "version": "1.0.0",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "senzai@abhidatta.benda",
+      "strict_min_version": "100.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+  "chrome_url_overrides": {
+    "newtab": "index.html"
+  },
+  "icons": {
+    "16": "icon/16.png",
+    "48": "icon/48.png",
+    "128": "icon/128.png"
+  },
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "content_security_policy": "script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com;",
+  "web_accessible_resources": [
+    "index.html",
+    "focus/*",
+    "icon/*",
+    "style.css",
+    "script/*",
+    "version/*"
+  ]
+}

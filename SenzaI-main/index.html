@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <script src="script/theme-init.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width" />
+  <meta name="description" content="The ultimate minimalist quicklink launcher by Abhidatta Benda." />
+  <meta property="og:title" content="SenzaI" />
+  <meta property="og:description" content="A minimalist, keyboard-centric start page." />
+  <meta name="theme-color" content="#ffffff" id="meta-theme-color" />
+  <link rel="icon" type="image/png" href="icon/favicon.png">
+  <title>New Tab</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <style id="user-font-style"></style>
+</head>
+
+<body>
+  <div id="custom-bg-container">
+    <video id="custom-bg-video" autoplay loop muted playsinline></video>
+  </div>
+
+  <div class="dots-menu-container">
+    <button class="dots-menu-button" id="dots-menu-btn" aria-label="Menu">⋮</button>
+    <div class="dots-dropdown-menu" id="dots-dropdown">
+      <button class="dots-dropdown-item" id="dots-item-config">Settings</button>
+      <button class="dots-dropdown-item" id="dots-item-customize">Appearance</button>
+      <button class="dots-dropdown-item" id="dots-item-bookmarks">Quicklinks</button>
+      <button class="dots-dropdown-item" id="dots-item-searchengines">Engines</button>
+      <button class="dots-dropdown-item" id="dots-item-aliases">Aliases</button>
+      <button class="dots-dropdown-item" id="dots-item-history">History</button>
+      <button class="dots-dropdown-item" id="dots-item-help">Help</button>
+    </div>
+  </div>
+
+  <noscript>
+    <div style="position: fixed; inset: 0; padding: 20px; background: #e74c3c; color: white; text-align: center; z-index: 9999;">
+      This start page requires JavaScript to function.
+    </div>
+  </noscript>
+
+  <div class="content">
+    <section class="terminal-section">
+      <div class="terminal-input-wrapper">
+        <div class="command-hint" id="command-hint"></div>
+        <div id="syntax-overlay" class="syntax-overlay"></div>
+        <input id="terminal-input" type="text" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="off" aria-label="Search" />
+        <div id="terminal-cursor"></div>
+        <span id="text-ruler"></span>
+        <div id="focus-indicator-line"></div>
+      </div>
+    </section>
+    <div id="status-line"></div>
+    <div id="live-results"></div>
+  </div>
+
+  <!-- Config Modal -->
+  <div class="config-modal" id="config-modal" role="dialog" aria-labelledby="config-title">
+    <div class="config-content">
+      <h2 id="config-title">Settings</h2>
+      
+      <!-- 1. General Settings -->
+      <div class="config-section">
+        <h3>General</h3>
+        <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Username</p>
+        <input type="text" id="config-username" spellcheck="false" style="margin-bottom: 12px;" />
+        <label class="config-checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; user-select: none;">
+          <input type="checkbox" id="config-enable-autofocus" />
+          <span>Auto-focus search bar on page load</span>
+        </label>
+      </div>
+
+      <!-- 2. Search & Suggestions -->
+      <div class="config-section">
+        <h3>Search & Suggestions</h3>
+        <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Default Search Engine</p>
+        <select id="search-engine" style="margin-bottom: 12px;">
+          <option value="google">Google</option>
+          <option value="ddg">DuckDuckGo</option>
+          <option value="bing">Bing</option>
+        </select>
+        
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;">
+          <label class="config-checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; user-select: none;">
+            <input type="checkbox" id="config-enable-hint" />
+            <span>Enable inline autocompletion hint (ghost text)</span>
+          </label>
+          <label class="config-checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; user-select: none;">
+            <input type="checkbox" id="config-enable-dropdown" />
+            <span>Enable suggestion dropdown (live results)</span>
+          </label>
+          <label class="config-checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; user-select: none;">
+            <input type="checkbox" id="config-enable-dropdown-nav" />
+            <span>Enable dropdown navigation (Arrow keys)</span>
+          </label>
+          <label class="config-checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; user-select: none;">
+            <input type="checkbox" id="config-enable-calculator" />
+            <span>Enable inline math evaluation</span>
+          </label>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <button id="btn-edit-bookmarks" style="flex: 1; background: var(--color-primary); color: white; border: none; padding: 10px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">Edit Quicklinks</button>
+          <button id="btn-edit-searchengines" style="flex: 1; background: var(--color-primary); color: white; border: none; padding: 10px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">Edit Engines</button>
+        </div>
+      </div>
+
+      <!-- 3. Status Line & Clock -->
+      <div class="config-section">
+        <h3>Status Line & Clock</h3>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <label class="config-checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; user-select: none;">
+            <input type="checkbox" id="config-enable-status-line" />
+            <span>Enable clock greeting status line</span>
+          </label>
+          <label class="config-checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; user-select: none;">
+            <input type="checkbox" id="config-time-24h" />
+            <span>Use 24-hour time format</span>
+          </label>
+          <label class="config-checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; user-select: none;">
+            <input type="checkbox" id="config-status-show-day" />
+            <span>Display day of the week</span>
+          </label>
+          <label class="config-checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; user-select: none;">
+            <input type="checkbox" id="config-status-show-month" />
+            <span>Display month name</span>
+          </label>
+          <label class="config-checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; user-select: none;">
+            <input type="checkbox" id="config-status-show-date" />
+            <span>Display day of the month</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 4. Keyboard Shortcuts -->
+      <div class="config-section">
+        <h3>Custom Shortcuts</h3>
+        <div style="display: flex; gap: 8px;">
+          <div style="flex: 1;">
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Close Tab</p>
+            <input type="text" id="config-key-close" maxlength="1" style="text-align: center;" />
+          </div>
+          <div style="flex: 1;">
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">New Tab</p>
+            <input type="text" id="config-key-new" maxlength="1" style="text-align: center;" />
+          </div>
+        </div>
+        <p class="config-hint" style="margin-top: 6px; margin-bottom: 0;">Active only when search bar is dormant.</p>
+      </div>
+
+      <!-- 5. Custom Typography -->
+      <div class="config-section">
+        <h3>Typography</h3>
+        <input type="text" id="config-font-family" placeholder="Font Family (e.g. 'JetBrains Mono')" spellcheck="false" style="margin-bottom: 8px;" />
+        <input type="text" id="config-font-url" placeholder="Font CSS URL (Google Fonts link)" spellcheck="false" />
+        <p class="config-hint" style="margin-top: 6px; margin-bottom: 0;">Leave blank to use default JetBrains Mono.</p>
+      </div>
+
+      <!-- 6. Backup & Advanced -->
+      <div class="config-section">
+        <h3>Backup & Advanced</h3>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; gap: 8px;">
+            <button id="btn-export-backup" style="flex: 1; background: rgba(128, 128, 128, 0.05); color: var(--text-color); border: 1px solid var(--card-border); padding: 10px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">Export Config</button>
+            <button id="btn-import-backup" style="flex: 1; background: rgba(128, 128, 128, 0.05); color: var(--text-color); border: 1px solid var(--card-border); padding: 10px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">Import Config</button>
+          </div>
+          <button id="btn-customize-from-config" style="width: 100%; background: rgba(128, 128, 128, 0.05); color: var(--text-color); border: 1px solid var(--card-border); padding: 10px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">Customize Appearance</button>
+          <button id="btn-reset-defaults" style="width: 100%; background: #e74c3c; color: white; border: none; padding: 10px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">Restore Defaults</button>
+        </div>
+      </div>
+
+      <div class="config-buttons">
+        <button class="btn-cancel" id="btn-cancel-config">Cancel</button>
+        <button class="btn-save" id="btn-save-config">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help Modal -->
+  <div class="config-modal" id="help-modal" role="dialog">
+    <div class="config-content" style="max-width: 700px; width: 100%;">
+      <h2>Help & Guide</h2>
+      
+      <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+        <!-- Column 1: Commands -->
+        <div style="flex: 1; min-width: 280px;">
+          <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; color: var(--text-color); opacity: 0.6; letter-spacing: 0.05em;">Commands</h3>
+          <div class="help-grid">
+            <div class="help-row"><span class="help-cmd">:help</span><span class="help-desc">Show guide manual</span></div>
+            <div class="help-row"><span class="help-cmd">:config</span><span class="help-desc">Open preferences settings</span></div>
+            <div class="help-row"><span class="help-cmd">:customize</span><span class="help-desc">Open appearance & themes</span></div>
+            <div class="help-row"><span class="help-cmd">:bookmarks</span><span class="help-desc">Manage quicklinks bookmarks</span></div>
+            <div class="help-row"><span class="help-cmd">:history</span><span class="help-desc">View terminal input history</span></div>
+            <div class="help-row"><span class="help-cmd">:version</span><span class="help-desc">Show application version</span></div>
+          </div>
+        </div>
+        
+        <!-- Column 2: Hotkeys & Themes -->
+        <div style="flex: 1; min-width: 280px; display: flex; flex-direction: column; gap: 20px;">
+          <div>
+            <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; color: var(--text-color); opacity: 0.6; letter-spacing: 0.05em;">Keyboard Shortcuts</h3>
+            <div class="help-grid">
+              <div class="help-row">
+                <div class="help-keys-container">
+                  <span class="help-key">Space</span>
+                  <span class="help-key-separator">/</span>
+                  <span class="help-key">Enter</span>
+                </div>
+                <span class="help-desc">Focus & wake search bar</span>
+              </div>
+              <div class="help-row">
+                <div class="help-keys-container">
+                  <span class="help-key">Escape</span>
+                </div>
+                <span class="help-desc">Blur search bar (dormant mode)</span>
+              </div>
+              <div class="help-row">
+                <div class="help-keys-container">
+                  <span class="help-key">t</span>
+                  <span class="help-key-separator">/</span>
+                  <span class="help-key">x</span>
+                </div>
+                <span class="help-desc">Open/close tab (dormant mode)</span>
+              </div>
+              <div class="help-row">
+                <div class="help-keys-container">
+                  <span class="help-key">Tab</span>
+                  <span class="help-key-separator">/</span>
+                  <span class="help-key">→</span>
+                </div>
+                <span class="help-desc">Accept autocompletion hint</span>
+              </div>
+              <div class="help-row">
+                <div class="help-keys-container">
+                  <span class="help-key">↑</span>
+                  <span class="help-key-separator">/</span>
+                  <span class="help-key">↓</span>
+                </div>
+                <span class="help-desc">Navigate history & suggestions</span>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 14px; text-transform: uppercase; color: var(--text-color); opacity: 0.6; letter-spacing: 0.05em;">Themes</h3>
+            <p class="config-hint" style="margin-bottom: 8px; margin-top: 0;">Type these in the bar to switch instantly:</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <span class="help-theme-tag">:dark</span>
+              <span class="help-theme-tag">:light</span>
+              <span class="help-theme-tag">:black</span>
+              <span class="help-theme-tag">:nord</span>
+              <span class="help-theme-tag">:gruvbox</span>
+              <span class="help-theme-tag">:dracula</span>
+              <span class="help-theme-tag">:kanagawa</span>
+              <span class="help-theme-tag">:tokyo-night</span>
+              <span class="help-theme-tag">:ctp-mocha</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="config-buttons" style="margin-top: 24px;">
+        <button class="btn-save" id="btn-close-help" style="margin-left: auto;">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bookmarks Modal -->
+  <div class="config-modal" id="bookmarks-modal" role="dialog">
+    <div class="config-content" style="max-width: 800px;">
+      <h2>Bookmarks</h2>
+      <div class="config-section">
+        <button class="btn-toggle-editor" id="toggle-editor-btn" style="margin-bottom: 12px;">Edit JSON</button>
+      </div>
+      <div id="bookmarks-grid-editor" class="bookmarks-grid-editor"></div>
+      <button class="btn-add-row" id="btn-add-bookmark">+ Add Link</button>
+      <textarea id="config-textarea" class="hidden" spellcheck="false" style="min-height: 400px;"></textarea>
+      <div class="config-buttons">
+        <button class="btn-cancel" id="btn-cancel-bookmarks">Discard</button>
+        <button class="btn-save" id="btn-save-bookmarks">Save</button>
+        <button class="btn-cancel" id="btn-back-bookmarks" style="margin-left: auto; border-color: var(--color-primary); color: var(--color-primary);">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search Engines Modal -->
+  <div class="config-modal" id="searchengines-modal" role="dialog">
+    <div class="config-content" style="max-width: 800px;">
+      <h2>Custom Search Engines</h2>
+      <p class="config-hint" style="margin-bottom: 12px;">Map prefixes (e.g. <code>mdn</code>) to query URLs containing the query at the end (e.g. <code>https://developer.mozilla.org/en-US/search?q=</code>).</p>
+      <div id="searchengines-grid-editor" class="bookmarks-grid-editor"></div>
+      <button class="btn-add-row" id="btn-add-searchengine">+ Add Engine</button>
+      <div class="config-buttons">
+        <button class="btn-cancel" id="btn-cancel-searchengines">Discard</button>
+        <button class="btn-save" id="btn-save-searchengines">Save</button>
+        <button class="btn-cancel" id="btn-back-searchengines" style="margin-left: auto; border-color: var(--color-primary); color: var(--color-primary);">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aliases Modal -->
+  <div class="config-modal" id="aliases-modal" role="dialog">
+    <div class="config-content" style="max-width: 800px;">
+      <h2>Custom Aliases</h2>
+      <p class="config-hint" style="margin-bottom: 12px;">Map exact command keywords (e.g. <code>inbox</code>) to redirect URLs (e.g. <code>https://mail.google.com</code>).</p>
+      <div id="aliases-grid-editor" class="bookmarks-grid-editor"></div>
+      <button class="btn-add-row" id="btn-add-alias">+ Add Alias</button>
+      <div class="config-buttons">
+        <button class="btn-cancel" id="btn-cancel-aliases">Discard</button>
+        <button class="btn-save" id="btn-save-aliases">Save</button>
+        <button class="btn-cancel" id="btn-back-aliases" style="margin-left: auto; border-color: var(--color-primary); color: var(--color-primary);">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Customize Modal -->
+  <div class="config-modal" id="customize-modal" role="dialog">
+    <div class="config-content">
+      <h2>Appearance</h2>
+      
+      <!-- 1. Theme -->
+      <div class="config-section">
+        <h3>Theme</h3>
+        <p class="config-hint" style="margin-bottom: 6px; margin-top: 0;">Select Theme</p>
+        <div class="customize-theme-grid" id="customize-theme-grid" style="margin-bottom: 16px;"></div>
+      </div>
+
+      <!-- 2. Search Bar Styling -->
+      <div class="config-section">
+        <h3>Search Bar Style</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+          <div>
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Bar Rounding</p>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <input type="range" id="config-bar-rounding" min="0" max="50" step="1" style="flex: 1; height: 6px; padding: 0;" />
+              <span id="rounding-value-display" style="font-family: var(--monospace-font-family); font-size: 14px; min-width: 40px; text-align: right;">32px</span>
+            </div>
+          </div>
+          <div>
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Bar Background Opacity</p>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <input type="range" id="config-bar-opacity" min="0" max="100" step="5" style="flex: 1; height: 6px; padding: 0;" />
+              <span id="bar-opacity-value-display" style="font-family: var(--monospace-font-family); font-size: 14px; min-width: 40px; text-align: right;">90%</span>
+            </div>
+          </div>
+          <div>
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Bar Text Opacity</p>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <input type="range" id="config-text-opacity" min="10" max="100" step="5" style="flex: 1; height: 6px; padding: 0;" />
+              <span id="text-opacity-value-display" style="font-family: var(--monospace-font-family); font-size: 14px; min-width: 40px; text-align: right;">100%</span>
+            </div>
+          </div>
+          <div>
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Bar Backdrop Blur</p>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <input type="range" id="config-bar-blur" min="0" max="20" step="1" style="flex: 1; height: 6px; padding: 0;" />
+              <span id="bar-blur-value-display" style="font-family: var(--monospace-font-family); font-size: 14px; min-width: 40px; text-align: right;">18px</span>
+            </div>
+          </div>
+          <div style="margin-top: 4px; display: flex; flex-direction: column; gap: 10px;">
+            <label class="config-checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; user-select: none;">
+              <input type="checkbox" id="config-bar-invisible" />
+              <span>Invisible Bar Mode (plain text)</span>
+            </label>
+            <label class="config-checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; user-select: none;">
+              <input type="checkbox" id="config-bar-text-center" />
+              <span>Center Align Text</span>
+            </label>
+            <label class="config-checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; user-select: none;">
+              <input type="checkbox" id="config-cursor-block" />
+              <span>Enable Block Cursor</span>
+            </label>
+          </div>
+          <div>
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Focus Underline Indicator</p>
+            <select id="config-focus-indicator-mode">
+              <option value="off">Off</option>
+              <option value="glowing">Glowing Underline</option>
+              <option value="regular">Regular Underline</option>
+            </select>
+          </div>
+          <div style="margin-top: 10px;">
+            <label class="config-checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; user-select: none;">
+              <input type="checkbox" id="config-enable-glossy" />
+              <span>Enable Glossy Mode (Frosted Glass)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Background Setup -->
+      <div class="config-section">
+        <h3>Background Setup</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div>
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Background Type</p>
+            <select id="config-bg-type">
+              <option value="none">Theme Default</option>
+              <option value="img-url">Custom Image URL</option>
+              <option value="vid-url">Custom Video URL (Loop)</option>
+              <option value="img-file">Local Image File</option>
+              <option value="vid-file">Local Video File (2-10s clip)</option>
+            </select>
+          </div>
+          <div id="bg-url-input-container" class="hidden">
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Background URL</p>
+            <input type="text" id="config-bg-url" placeholder="https://example.com/background.jpg" spellcheck="false" />
+          </div>
+          <div id="bg-file-input-container" class="hidden">
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Upload File (2-10s video / image)</p>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="file" id="config-bg-file" accept="image/*,video/*" style="display: none;" />
+              <button type="button" id="btn-trigger-upload" style="flex: 1; background: rgba(128, 128, 128, 0.05); color: var(--text-color); border: 1px solid var(--card-border); padding: 10px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">Choose File</button>
+              <button type="button" id="btn-clear-upload" style="background: #e74c3c; color: white; border: none; padding: 10px 16px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">Clear</button>
+            </div>
+            <p class="config-hint" id="bg-file-status" style="margin-top: 6px; font-weight: 500;"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Line Style -->
+      <div class="config-section">
+        <h3>Status Line Style</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div>
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Text Color</p>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="color" id="config-status-line-color" style="width: 50px; height: 38px; padding: 0; border: 1px solid var(--card-border); border-radius: var(--radius-md); cursor: pointer; background: transparent;" />
+              <button type="button" id="btn-reset-status-line-color" style="background: rgba(128, 128, 128, 0.05); color: var(--text-color); border: 1px solid var(--card-border); padding: 8px 12px; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; cursor: pointer;">Reset to Theme Default</button>
+            </div>
+          </div>
+          <div>
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Text Opacity</p>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <input type="range" id="config-status-line-opacity" min="10" max="100" step="5" style="flex: 1; height: 6px; padding: 0;" />
+              <span id="status-line-opacity-value-display" style="font-family: var(--monospace-font-family); font-size: 14px; min-width: 40px; text-align: right;">55%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Bar Positioning -->
+      <div class="config-section">
+        <h3>Bar Positioning</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div>
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Alignment Mode</p>
+            <select id="config-bar-position-mode">
+              <option value="preset">Alignment Presets</option>
+              <option value="custom">Custom (Drag & Drop)</option>
+            </select>
+          </div>
+          
+          <div id="bar-preset-selection-container">
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Preset Position</p>
+            <select id="config-bar-position-preset">
+              <option value="center">Center</option>
+              <option value="top-center">Top Center</option>
+              <option value="bottom-center">Bottom Center</option>
+              <option value="left">Left</option>
+              <option value="top-left">Top Left</option>
+              <option value="bottom-left">Bottom Left</option>
+              <option value="right">Right</option>
+              <option value="top-right">Top Right</option>
+              <option value="bottom-right">Bottom Right</option>
+            </select>
+          </div>
+
+          <div id="bar-snap-selection-container" class="hidden">
+            <p class="config-hint" style="margin-bottom: 4px; margin-top: 0;">Snap Mode</p>
+            <select id="config-bar-snap-mode">
+              <option value="free">Free Move</option>
+              <option value="grid-5">Grid Snap (5%)</option>
+              <option value="grid-10">Grid Snap (10%)</option>
+            </select>
+            <p class="config-hint" id="drag-helper-text" style="color: var(--color-primary); font-weight: 600; margin-top: 8px; font-size: 13px;">Drag the search bar around the screen to position it.</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="config-buttons">
+        <button class="btn-cancel" id="btn-cancel-customize">Cancel</button>
+        <button class="btn-save" id="btn-save-customize">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Modal -->
+  <div class="config-modal" id="history-modal" role="dialog">
+    <div class="config-content">
+      <h2>History</h2>
+      <div id="history-list" class="history-list"></div>
+      <div class="config-buttons">
+        <button class="btn-cancel" id="btn-clear-history">Clear</button>
+        <button class="btn-save" id="btn-close-history">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading-overlay"><div id="loading-ring"></div></div>
+
+  <script src="script/db.js"></script>
+  <script src="script/ext-storage.js"></script>
+  <script src="version/version.js"></script>
+  <script src="script/utils.js"></script>
+  <script src="script/ui.js"></script>
+  <script src="script/storage.js"></script>
+  <script src="script/bookmarks.js"></script>
+  <script src="script/modals/config.js"></script>
+  <script src="script/modals/bookmarks.js"></script>
+  <script src="script/modals/searchengines.js"></script>
+  <script src="script/modals/aliases.js"></script>
+  <script src="script/modals/help.js"></script>
+  <script src="script/modals/customize.js"></script>
+  <script src="script/modals/backup.js"></script>
+  <script src="script/commands.js"></script>
+  <script src="script/terminal.js"></script>
+  <script src="script/script.js"></script>
+  <script src="script/inline-handlers.js"></script>
+</body>
+</html>
