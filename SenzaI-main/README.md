@@ -21,8 +21,8 @@ SenzaI runs entirely in your browser, works offline, and respects your privacy.
 
 1. Clone or download this repository:
    ```bash
-   git clone https://github.com/username/SenzaI.git
-   cd SenzaI
+   git clone {repo_Link}
+   cd SenzaI-Main
    ```
 2. Build the manifest for your browser:
    ```bash
@@ -74,4 +74,8 @@ Modify settings or styles as needed:
 - `script/theme-init.js`: Inline script replacement to prevent theme flash without violating CSP
 
 ## License
+<<<<<<< HEAD
 Created by Abhidatta Benda.
+=======
+ Created by Abhidatta Benda.
+>>>>>>> 13efa0b031e118eb37f4a53e8e7e2fdf9a9cdff7
