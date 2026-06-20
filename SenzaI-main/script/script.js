@@ -21,6 +21,10 @@ function loadTheme() {
     document.body.classList.add(`${theme}-mode`);
     document.documentElement.classList.add(`${theme}-mode`);
   }
+  
+  // Broadcast the theme and glossy mode configuration so the Electron wrapper matches
+  const glossy = (typeof getStoredGlossyMode === 'function') ? getStoredGlossyMode() : false;
+  console.log(`[SenzalTheme] ${theme} ${glossy}`);
 }
 
 /**
@@ -231,26 +235,14 @@ function applyBarRounding(val) {
 
       if (e.key.toLowerCase() === keyNew) {
         e.preventDefault();
-        const nt = (typeof chrome !== 'undefined' && chrome.runtime) 
-          ? chrome.runtime.getURL('index.html') 
-          : 'index.html';
-        window.open(nt, '_blank');
+        const nt = SenzaIBrowser.getURL('index.html');
+        SenzaIBrowser.openNewTab(nt);
         return;
       }
 
       if (e.key.toLowerCase() === keyClose) {
         e.preventDefault();
-        if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.getCurrent) {
-          chrome.tabs.getCurrent((tab) => {
-            if (tab && tab.id !== undefined) {
-              chrome.tabs.remove(tab.id);
-            } else {
-              window.close();
-            }
-          });
-        } else {
-          window.close();
-        }
+        SenzaIBrowser.closeCurrentTab();
         return;
       }
 
@@ -290,6 +282,20 @@ function initGlossyMode() {
 }
 
 let currentBgObjectUrl = null;
+let cachedBackgroundKey = '';
+
+function _releaseBackgroundResources() {
+  if (currentBgObjectUrl) {
+    URL.revokeObjectURL(currentBgObjectUrl);
+    currentBgObjectUrl = null;
+  }
+  const video = document.getElementById('custom-bg-video');
+  if (video) {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+  }
+}
 
 async function applyBackground() {
   const container = document.getElementById('custom-bg-container');
@@ -298,17 +304,19 @@ async function applyBackground() {
 
   const bgType = getStoredBackgroundType();
   const bgUrl = getStoredBackgroundUrl();
+  const cacheKey = `${bgType}|${bgUrl}`;
+  const isFileBg = bgType === 'img-file' || bgType === 'vid-file';
 
-  // Clean up existing Object URL to prevent memory leaks
-  if (currentBgObjectUrl) {
-    URL.revokeObjectURL(currentBgObjectUrl);
-    currentBgObjectUrl = null;
+  if (cacheKey === cachedBackgroundKey && bgType !== 'none' && !isFileBg) {
+    return;
   }
+  cachedBackgroundKey = cacheKey;
+
+  _releaseBackgroundResources();
 
   // Hide background and video by default, resetting
   container.style.backgroundImage = 'none';
   video.style.display = 'none';
-  video.src = '';
 
   if (bgType === 'img-url') {
     if (bgUrl) {
@@ -341,6 +349,9 @@ async function applyBackground() {
   }
 }
 window.applyBackground = applyBackground;
+window.invalidateBackgroundCache = () => {
+  cachedBackgroundKey = '';
+};
 
 function setupBackgroundOptimization() {
   const video = document.getElementById('custom-bg-video');
@@ -377,9 +388,31 @@ function setupBackgroundOptimization() {
   document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('blur', handleWindowBlur);
   window.addEventListener('focus', handleWindowFocus);
+
+  window.addEventListener('pagehide', () => {
+    _releaseBackgroundResources();
+    cachedBackgroundKey = '';
+  });
+}
+
+function scheduleStatusClock() {
+  const statusEl = document.getElementById('status-line');
+  const enabled = typeof getStoredEnableStatusLine === 'function' ? getStoredEnableStatusLine() : true;
+  const isVisible = statusEl && statusEl.classList.contains('visible');
+
+  if (enabled && isVisible && typeof updateStatusText === 'function') {
+    updateStatusText();
+  }
+
+  const now = new Date();
+  const msToNextMinute = (60 - now.getSeconds()) * 1000 - now.getMilliseconds() + 50;
+  setTimeout(scheduleStatusClock, Math.max(msToNextMinute, 1000));
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Check if we are running in a private/incognito session
+  window.isPrivateSession = new URLSearchParams(window.location.search).get('private') === 'true';
+
   // Wait for async storage shim if present
   if (window.extStorageReady) await window.extStorageReady;
   
@@ -408,12 +441,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     initializeCustomDropdowns();
   }
 
-  // Start status clock loop
-  if (typeof updateStatusText === 'function') updateStatusText();
+  // Start status clock loop (minute-aligned, only when visible)
   if (typeof updateStatusLineVisibility === 'function') updateStatusLineVisibility();
-  setInterval(() => {
-    if (typeof updateStatusText === 'function') updateStatusText();
-  }, 15000);
+  scheduleStatusClock();
 
   // Redundant click-outside handlers for modals
   [

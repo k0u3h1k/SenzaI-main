@@ -36,7 +36,13 @@ const BACKUP_KEYS = [
   'time24h',
   'statusShowDay',
   'statusShowMonth',
-  'statusShowDate'
+  'statusShowDate',
+  'glossyMode',
+  'customAliases',
+  'backgroundType',
+  'backgroundUrl',
+  'statusLineColor',
+  'statusLineOpacity'
 ];
 
 function exportBackup() {

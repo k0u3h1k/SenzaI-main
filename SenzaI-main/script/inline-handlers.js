@@ -127,9 +127,30 @@ document.addEventListener('DOMContentLoaded', () => {
     fileInput.addEventListener('change', async () => {
       if (fileInput.files.length > 0) {
         const file = fileInput.files[0];
+        const maxImageBytes = 10 * 1024 * 1024;
+        const maxVideoBytes = 25 * 1024 * 1024;
+        const isVideo = file.type.startsWith('video/');
+        const maxBytes = isVideo ? maxVideoBytes : maxImageBytes;
+
+        if (file.size > maxBytes) {
+          showToast(`File too large (max ${isVideo ? '25' : '10'} MB)`, 'error');
+          fileInput.value = '';
+          return;
+        }
+        
+        // Delegate native storage if running inside Senzal shell
+        if (file.path) {
+          console.log(`[SenzalSaveBackground] ${file.path} ${file.name}`);
+          if (statusText) {
+            statusText.textContent = `Stored natively: ${file.name}`;
+          }
+          return;
+        }
+
         try {
           if (typeof storeBackgroundBlob === 'function') {
             await storeBackgroundBlob(file);
+            if (typeof window.invalidateBackgroundCache === 'function') window.invalidateBackgroundCache();
             if (statusText) {
               statusText.textContent = `Stored file: ${file.type} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
             }
@@ -151,6 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         if (typeof clearBackgroundBlob === 'function') {
           await clearBackgroundBlob();
+          if (typeof window.invalidateBackgroundCache === 'function') window.invalidateBackgroundCache();
           if (statusText) statusText.textContent = 'No file stored';
           if (fileInput) fileInput.value = '';
           showToast('Background file cleared', 'success');

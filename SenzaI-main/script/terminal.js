@@ -46,6 +46,26 @@ let activeResultIdx = -1;
 let originalTypedValue = "";
 let terminalHistory = [];
 let terminalHistoryIdx = -1;
+let _focusIndicatorRaf = 0;
+let _cachedSearchPrefixes = null;
+
+function getSearchPrefixes() {
+  if (_cachedSearchPrefixes) return _cachedSearchPrefixes;
+  const prefixes = ['yt:', 'r:', 'ddg:', 'gh:', 'ma:'];
+  if (typeof getStoredCustomSearchEngines === 'function') {
+    getStoredCustomSearchEngines().forEach((item) => {
+      if (!item.prefix) return;
+      const pfx = item.prefix.endsWith(':') ? item.prefix.toLowerCase() : `${item.prefix.toLowerCase()}:`;
+      if (!prefixes.includes(pfx)) prefixes.push(pfx);
+    });
+  }
+  _cachedSearchPrefixes = prefixes;
+  return prefixes;
+}
+
+window.invalidateSearchPrefixCache = () => {
+  _cachedSearchPrefixes = null;
+};
 
 /**
  * Sets up the input event listener for live syntax highlighting and hints.
@@ -103,19 +123,7 @@ function renderSyntaxHighlight(rawValue) {
   } else if (isUrl) {
     htmlContent = `<span class="syn-url">${escapeHTML(value)}</span>`;
   } else {
-    const searchPrefixes = ['yt:', 'r:', 'ddg:', 'gh:', 'ma:'];
-    if (typeof getStoredCustomSearchEngines === 'function') {
-      const customList = getStoredCustomSearchEngines();
-      customList.forEach(item => {
-        if (item.prefix) {
-          const pfx = item.prefix.endsWith(':') ? item.prefix.toLowerCase() : `${item.prefix.toLowerCase()}:`;
-          if (!searchPrefixes.includes(pfx)) {
-            searchPrefixes.push(pfx);
-          }
-        }
-      });
-    }
-
+    const searchPrefixes = getSearchPrefixes();
     let matchedPrefix = null;
     for (const prefix of searchPrefixes) {
       if (lowerValue.startsWith(prefix)) {
@@ -417,6 +425,7 @@ function saveHistory(h) { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); 
  * Adds an entry to the command history, maintaining a max of 50 unique items.
  */
 function pushHistory(entry) {
+  if (window.isPrivateSession) return;
   if (!entry) return;
   const h = loadHistory().filter(e => e !== entry);
   h.push(entry);
@@ -468,6 +477,12 @@ function renderHistoryList() {
 }
 
 function updateFocusIndicator() {
+  if (_focusIndicatorRaf) cancelAnimationFrame(_focusIndicatorRaf);
+  _focusIndicatorRaf = requestAnimationFrame(_updateFocusIndicatorImpl);
+}
+
+function _updateFocusIndicatorImpl() {
+  _focusIndicatorRaf = 0;
   const input = document.getElementById('terminal-input');
   const indicator = document.getElementById('focus-indicator-line');
   const ruler = document.getElementById('text-ruler');

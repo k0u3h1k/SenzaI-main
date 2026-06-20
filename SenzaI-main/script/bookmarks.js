@@ -1,11 +1,16 @@
 // ========================================
 // Favicon helper
 // ========================================
-const FAVICON_PROBE_TIMEOUT_MS = 6000;
+const FAVICON_PROBE_TIMEOUT_MS = 4000;
 const FAVICON_CACHE_KEY = 'favicon-resolved-v1';
 const FAVICON_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const FAVICON_MAX_CONCURRENT = 2;
 
 const _faviconMemCache = {};
+let _faviconPersistTimer = null;
+let _liveResultsGeneration = 0;
+let _activeFaviconProbes = 0;
+const _faviconProbeQueue = [];
 
 (function _hydrateFaviconCache() {
   try {
@@ -22,14 +27,18 @@ const _faviconMemCache = {};
 })();
 
 function _persistFaviconCache() {
-  try {
-    const now = Date.now();
-    const out = {};
-    for (const [key, src] of Object.entries(_faviconMemCache)) {
-      out[key] = { src, ts: now };
-    }
-    localStorage.setItem(FAVICON_CACHE_KEY, JSON.stringify(out));
-  } catch {}
+  if (_faviconPersistTimer) clearTimeout(_faviconPersistTimer);
+  _faviconPersistTimer = setTimeout(() => {
+    _faviconPersistTimer = null;
+    try {
+      const now = Date.now();
+      const out = {};
+      for (const [key, src] of Object.entries(_faviconMemCache)) {
+        out[key] = { src, ts: now };
+      }
+      localStorage.setItem(FAVICON_CACHE_KEY, JSON.stringify(out));
+    } catch {}
+  }, 800);
 }
 
 function _rootDomain(hostname) {
@@ -80,12 +89,43 @@ function _probeIcon(src, minSize) {
   return new Promise((resolve) => {
     const img = new Image();
     let settled = false;
-    const finish = (w) => { if (!settled) { settled = true; resolve(w); } };
+    const finish = (w) => {
+      if (settled) return;
+      settled = true;
+      img.onload = null;
+      img.onerror = null;
+      img.src = '';
+      resolve(w);
+    };
     const timer = setTimeout(() => finish(0), FAVICON_PROBE_TIMEOUT_MS);
-    img.onload  = () => { clearTimeout(timer); finish(img.naturalWidth >= minSize ? img.naturalWidth : 0); };
-    img.onerror = () => { clearTimeout(timer); finish(0); };
+    img.onload = () => {
+      clearTimeout(timer);
+      finish(img.naturalWidth >= minSize ? img.naturalWidth : 0);
+    };
+    img.onerror = () => {
+      clearTimeout(timer);
+      finish(0);
+    };
     img.src = src;
   });
+}
+
+function _runFaviconProbe(task) {
+  _activeFaviconProbes++;
+  task().finally(() => {
+    _activeFaviconProbes--;
+    if (_faviconProbeQueue.length > 0) {
+      _runFaviconProbe(_faviconProbeQueue.shift());
+    }
+  });
+}
+
+function _enqueueFaviconProbe(task) {
+  if (_activeFaviconProbes < FAVICON_MAX_CONCURRENT) {
+    _runFaviconProbe(task);
+  } else {
+    _faviconProbeQueue.push(task);
+  }
 }
 
 async function _raceTier(sources) {
@@ -111,7 +151,9 @@ async function _probeSequential(sources) {
   return null;
 }
 
-async function _loadFavicon(displayImg, domain, sources) {
+async function _loadFavicon(displayImg, domain, sources, generation) {
+  if (generation !== _liveResultsGeneration) return;
+
   if (domain in _faviconMemCache) {
     const cached = _faviconMemCache[domain];
     if (cached) {
@@ -123,21 +165,46 @@ async function _loadFavicon(displayImg, domain, sources) {
     return;
   }
 
-  if (!sources) { displayImg.style.display = 'none'; return; }
-
-  let winner = await _raceTier(sources.tier1);
-  if (!winner) winner = await _probeSequential(sources.tier2);
-  if (!winner) winner = await _probeSequential(sources.tier3);
-
-  _faviconMemCache[domain] = winner;
-  _persistFaviconCache();
-
-  if (winner) {
-    displayImg.src = winner;
-    displayImg.style.display = 'block';
-  } else {
+  if (!sources) {
     displayImg.style.display = 'none';
+    return;
   }
+
+  return new Promise((resolve) => {
+    _enqueueFaviconProbe(async () => {
+      if (generation !== _liveResultsGeneration) {
+        resolve();
+        return;
+      }
+
+      let winner = await _raceTier(sources.tier1);
+      if (generation !== _liveResultsGeneration) {
+        resolve();
+        return;
+      }
+      if (!winner) winner = await _probeSequential(sources.tier2);
+      if (generation !== _liveResultsGeneration) {
+        resolve();
+        return;
+      }
+      if (!winner) winner = await _probeSequential(sources.tier3);
+      if (generation !== _liveResultsGeneration) {
+        resolve();
+        return;
+      }
+
+      _faviconMemCache[domain] = winner;
+      _persistFaviconCache();
+
+      if (winner) {
+        displayImg.src = winner;
+        displayImg.style.display = 'block';
+      } else {
+        displayImg.style.display = 'none';
+      }
+      resolve();
+    });
+  });
 }
 
 function getFilteredBookmarks(rawValue) {
@@ -160,17 +227,12 @@ function getFilteredBookmarks(rawValue) {
 
 // ---- Live Results Rendering ----
 function getNativeFaviconUrl(url) {
-  try {
-    const u = new URL(url);
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
-      // Chrome extension native favicon utility
-      return `chrome-extension://${chrome.runtime.id}/_favicon/?pageUrl=${encodeURIComponent(u.origin)}&size=32`;
-    }
-  } catch (e) {}
-  return null;
+  return typeof SenzaIBrowser !== 'undefined'
+    ? SenzaIBrowser.getNativeFaviconUrl(url)
+    : null;
 }
 
-function renderLiveResults(rawValue) {
+const renderLiveResults = debounce(function renderLiveResultsImpl(rawValue) {
   const container = document.getElementById('live-results');
   if (!container) return;
 
@@ -181,10 +243,12 @@ function renderLiveResults(rawValue) {
   }
 
   const filtered = getFilteredBookmarks(rawValue).slice(0, 5);
+  const generation = ++_liveResultsGeneration;
 
   if (filtered.length === 0) {
     container.classList.remove('visible');
     container.style.height = '0px';
+    container.replaceChildren();
     return;
   }
 
@@ -192,34 +256,43 @@ function renderLiveResults(rawValue) {
   const isVisible = container.classList.contains('visible');
   const prevHeight = isVisible ? container.getBoundingClientRect().height : 0;
 
-  container.innerHTML = filtered.map((bm, idx) => {
+  container.replaceChildren();
+  filtered.forEach((bm) => {
     let domain = '';
     try { domain = new URL(bm.href).hostname; } catch {}
-    return `
-      <a href="${bm.href}" class="live-result-item">
-        <img class="result-favicon" id="favicon-${idx}" src="" alt="" style="width: 16px; height: 16px; margin-right: 10px; border-radius: 4px; object-fit: contain; flex-shrink: 0; display: none;" />
-        <span class="result-type">${bm.type}</span>
-        <span class="result-title">${escapeHTML(bm.title)}</span>
-        <span class="result-domain">${escapeHTML(domain)}</span>
-      </a>
-    `;
-  }).join('');
 
-  // Hydrate favicons asynchronously
-  filtered.forEach((bm, idx) => {
-    const img = document.getElementById(`favicon-${idx}`);
-    if (!img) return;
+    const link = document.createElement('a');
+    link.href = bm.href;
+    link.className = 'live-result-item';
 
-    let domain = '';
-    try { domain = new URL(bm.href).hostname; } catch {}
+    const img = document.createElement('img');
+    img.className = 'result-favicon';
+    img.alt = '';
+    img.width = 16;
+    img.height = 16;
+    img.style.cssText = 'width:16px;height:16px;margin-right:10px;border-radius:4px;object-fit:contain;flex-shrink:0;display:none;';
+
+    const typeSpan = document.createElement('span');
+    typeSpan.className = 'result-type';
+    typeSpan.textContent = bm.type;
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'result-title';
+    titleSpan.textContent = bm.title;
+
+    const domainSpan = document.createElement('span');
+    domainSpan.className = 'result-domain';
+    domainSpan.textContent = domain;
+
+    link.append(img, typeSpan, titleSpan, domainSpan);
+    container.appendChild(link);
 
     const nativeUrl = getNativeFaviconUrl(bm.href);
     if (nativeUrl) {
       img.src = nativeUrl;
       img.style.display = 'block';
-    } else {
-      const sources = _buildSources(domain);
-      _loadFavicon(img, domain, sources);
+    } else if (domain) {
+      _loadFavicon(img, domain, _buildSources(domain), generation);
     }
   });
   
@@ -238,4 +311,4 @@ function renderLiveResults(rawValue) {
     // Apply target height so the transition plays smoothly
     container.style.height = `${targetHeight}px`;
   });
-}
+}, 120);

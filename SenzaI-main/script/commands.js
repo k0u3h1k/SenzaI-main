@@ -163,6 +163,12 @@ function applyTheme(theme) {
 async function handleResetCommand() {
   const confirmed = await showConfirm('Wipe all settings and bookmarks?', { title: 'Reset SenzaI' });
   if (confirmed) {
+    if (typeof clearBackgroundBlob === 'function') {
+      try { await clearBackgroundBlob(); } catch {}
+    }
+    if (typeof window.invalidateBackgroundCache === 'function') {
+      window.invalidateBackgroundCache();
+    }
     localStorage.clear();
     location.reload();
   }

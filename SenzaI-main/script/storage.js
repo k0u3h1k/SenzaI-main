@@ -5,6 +5,36 @@
  * Handles reading and writing user preferences to localStorage.
  */
 
+
+// Hook localStorage methods to broadcast changes to the shell wrapper
+(function() {
+  const shouldSyncLog = () => window.__SENZAI_SHELL_SYNC__ === true;
+  const prevSetItem = localStorage.setItem.bind(localStorage);
+  const prevRemoveItem = localStorage.removeItem.bind(localStorage);
+  const prevClear = localStorage.clear.bind(localStorage);
+
+  localStorage.setItem = function(key, value) {
+    prevSetItem(key, value);
+    if (!window._isSyncing && shouldSyncLog()) {
+      console.log('[SenzalSyncLocalSetting] ' + JSON.stringify({ key, value }));
+    }
+  };
+
+  localStorage.removeItem = function(key) {
+    prevRemoveItem(key);
+    if (!window._isSyncing && shouldSyncLog()) {
+      console.log('[SenzalSyncLocalSettingRemove] ' + key);
+    }
+  };
+
+  localStorage.clear = function() {
+    prevClear();
+    if (!window._isSyncing && shouldSyncLog()) {
+      console.log('[SenzalSyncLocalSettingClear]');
+    }
+  };
+})();
+
 /* --- Default Configurations --- */
 
 const DEFAULT_BOOKMARKS = [
@@ -51,7 +81,12 @@ function getStoredBookmarks() {
     return upfront;
   } catch { return DEFAULT_BOOKMARKS; }
 }
-function saveBookmarks(b) { localStorage.setItem('bookmarks', JSON.stringify(b)); }
+function saveBookmarks(b) { 
+  localStorage.setItem('bookmarks', JSON.stringify(b)); 
+  if (window.__SENZAI_SHELL_SYNC__ === true) {
+    console.log('[SenzalSyncBookmarks] ' + JSON.stringify(b));
+  }
+}
 
 // Deprecated: legacy support for the old two-tier system
 function getStoredShelfBookmarks() { return []; }
@@ -164,6 +199,9 @@ function getStoredCustomSearchEngines() {
 }
 function saveCustomSearchEngines(engines) {
   localStorage.setItem('customSearchEngines', JSON.stringify(engines));
+  if (typeof window.invalidateSearchPrefixCache === 'function') {
+    window.invalidateSearchPrefixCache();
+  }
 }
 
 function getStoredCursorBlock() { return localStorage.getItem('cursorBlock') === 'true'; }

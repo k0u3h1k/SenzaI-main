@@ -8,28 +8,53 @@ const DB_NAME = 'SenzaIBackgroundsDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'backgrounds';
 
+let _dbPromise = null;
+
 /**
- * Opens a connection to the IndexedDB database.
+ * Opens a connection to the IndexedDB database (reuses a single connection).
  */
 function openDB() {
-  return new Promise((resolve, reject) => {
+  if (_dbPromise) return _dbPromise;
+
+  _dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-    
+
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
       }
     };
-    
+
     request.onsuccess = (event) => {
-      resolve(event.target.result);
+      const db = event.target.result;
+      db.onversionchange = () => {
+        db.close();
+        _dbPromise = null;
+      };
+      resolve(db);
     };
-    
+
     request.onerror = (event) => {
+      _dbPromise = null;
       reject(event.target.error);
     };
   });
+
+  return _dbPromise;
+}
+
+function _runStore(mode, fn) {
+  return openDB().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const transaction = db.transaction(STORE_NAME, mode);
+        const store = transaction.objectStore(STORE_NAME);
+        const request = fn(store);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      })
+  );
 }
 
 /**
@@ -38,20 +63,7 @@ function openDB() {
  * @returns {Promise<void>}
  */
 async function storeBackgroundBlob(blob) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(blob, 'custom-bg');
-    
-    request.onsuccess = () => {
-      resolve();
-    };
-    
-    request.onerror = () => {
-      reject(request.error);
-    };
-  });
+  await _runStore('readwrite', (store) => store.put(blob, 'custom-bg'));
 }
 
 /**
@@ -59,20 +71,8 @@ async function storeBackgroundBlob(blob) {
  * @returns {Promise<Blob|null>}
  */
 async function getBackgroundBlob() {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.get('custom-bg');
-    
-    request.onsuccess = (event) => {
-      resolve(event.target.result || null);
-    };
-    
-    request.onerror = () => {
-      reject(request.error);
-    };
-  });
+  const result = await _runStore('readonly', (store) => store.get('custom-bg'));
+  return result || null;
 }
 
 /**
@@ -80,18 +80,5 @@ async function getBackgroundBlob() {
  * @returns {Promise<void>}
  */
 async function clearBackgroundBlob() {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.delete('custom-bg');
-    
-    request.onsuccess = () => {
-      resolve();
-    };
-    
-    request.onerror = () => {
-      reject(request.error);
-    };
-  });
+  await _runStore('readwrite', (store) => store.delete('custom-bg'));
 }
