@@ -361,14 +361,10 @@ function handleKeyboardEvents(input) {
         }
       }
       
-      // Auto-complete to suggestion if visible
-      const suggestion = input.getAttribute('data-suggestion');
-      const finalVal = (suggestion && suggestion.toLowerCase().startsWith(val.toLowerCase())) ? suggestion : val;
-      
-      pushHistory(finalVal);
+      pushHistory(val);
       terminalHistory = loadHistory().reverse();
       terminalHistoryIdx = -1;
-      handleSpecialCommands(finalVal);
+      handleSpecialCommands(val);
     }
   });
 }
