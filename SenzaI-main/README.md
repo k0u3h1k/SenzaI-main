@@ -74,4 +74,4 @@ Modify settings or styles as needed:
 - `script/theme-init.js`: Inline script replacement to prevent theme flash without violating CSP
 
 ## License
-MIT License. Created by Abhidatta Benda.
+Created by Abhidatta Benda.
